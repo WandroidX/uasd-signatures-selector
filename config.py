@@ -1,10 +1,10 @@
-PRESENCIAL_COURSES_XL_FILE_PATH: str = '~/Downloads/programacion-presencial.xlsx'
-VIRTUAL_COURSES_XL_FILE_PATH: str = '~/Downloads/programacion-virtual.xlsx'
+PRESENCIAL_COURSES_XL_FILE_PATH: str = '/home/wanderson/Downloads/programacion-presencial.xlsx'
+VIRTUAL_COURSES_XL_FILE_PATH: str = '/home/wanderson/Downloads/programacion-virtual.xlsx'
 COURSES_CAMPUS: str = 'San Juan'
 UASD_ACCESS_USERNAME: str = '100678858'
 UASD_ACCESS_PASSWORD: str = '@Eljefe2005'
-USEFUL_COLUMNS_INDEX: list[int] = [1, 2, 4, 6, 10, 11]
-USEFUL_COLUMNS_HEADERS: list[str] = ['way_of_learning', 'NRC', 'course_name', 'teacher', 'timetable', 'days']
+USEFUL_COLUMNS_INDEX: list[int] = [1, 3, 5, 7, 10, 11]
+USEFUL_COLUMNS_HEADERS: list[str] = ['NRC',  'course_name', 'teacher', 'way_of_learning', 'timetable', 'days']
 SIGNATURES_TO_SELECT: list[str] = [ 'Laboratorio de Biología Básica', 'Física Básica', 'Química Básica', 'Laboratorio de Física Básica']
-OUTPUT_FILE_PATH: str = r'~/Desktop'
+OUTPUT_FILE_PATH: str = r'/home/wanderson/Desktop/output_file.csv'
 GECKO_DRIVER_PATH: str = r'./geckodriver'

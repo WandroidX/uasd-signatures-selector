@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Match, Pattern, TypedDict
+from typing import Match, Pattern
 
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s', level=logging.DEBUG)
@@ -20,15 +20,49 @@ def convert_hour_to_seconds(hour: str) -> str:
 def parse_timetable_from_timetables(timetables: str) -> list[str]:
     '''Receive a string with several timetables and return
     a list with all of them in the string'''
-    re_timetable: Pattern = re.compile(r'(\d{2} a \d{2})')
-    return re_timetable.findall(timetables)
+    return timetables.split(',')
+
+def merge_several_timetables_in_str(timetable_str: str) -> str:
+    # are divided by groups because is needed for comparison
+    re_timetable: Pattern = re.compile(r'(\d{2}) a (\d{2})')
+    timetables: list[tuple[ str, str ]] = re_timetable.findall(timetable_str)
+    print(timetables)
+    START_TIME_INDEX: int = 0
+    END_TIME_INDEX: int = 1
+    # this number is the index of the last element in the tuples of the list inmediately before
+
+    # this is called fr
+    merged_start_time: str = ''
+    merged_end_time: str  = ''
+    for timetable in timetables:
+        start_time_timetable: str = timetable[START_TIME_INDEX]
+        end_time_timetable: str = timetable[END_TIME_INDEX]
+        if not merged_start_time:
+            merged_start_time = start_time_timetable
+        else:
+            # this means that the {timetable} is before the merged timetable (merged_start_time and
+            # merged_end_time)
+            current_timetable_before_the_merged: bool = end_time_timetable == merged_start_time > start_time_timetable
+            if current_timetable_before_the_merged:
+                merged_start_time = start_time_timetable
+
+        if not merged_end_time == 0:
+            merged_end_time = end_time_timetable
+        else:
+            # this mean that the {timetable} is afther the merged timetable (merged_start_time and
+            # merged_end_time)
+            if merged_end_time == start_time_timetable:
+                merged_end_time = end_time_timetable
+
+    return f'{merged_start_time} a {merged_end_time}'
 
 def get_start_and_end_time_from_timetable(timetable: str) -> dict[str, str] :
     '''Receive a timetable (only one) and get the start and the final hour of it'''
     re_timetable: Pattern = re.compile(r'(\d{2}) a (\d{2})')
     start_hour: str
     end_hour: str
-    hours_found: Match | None = re_timetable .search(timetable) 
+    hours_found: Match | None = re_timetable.search(timetable) 
+
     
     if hours_found:
         start_hour, end_hour = (
@@ -43,7 +77,7 @@ def get_start_and_end_time_from_timetable(timetable: str) -> dict[str, str] :
         }
         return time_dict
     else:
-        raise Exception('the argument is not a timetable')
+        raise Exception(f'the argument is not a timetable: {timetable}')
 
 def parse_days(days: str) -> list[str]:
     '''Receive a string with several days and return a list with 
@@ -53,20 +87,49 @@ def parse_days(days: str) -> list[str]:
     days_found = re_days.findall(days)
     return days_found
 
+def parse_course_credits_amount(timetable_str: str = '', timetables: list[str] = [], DEFAULT_VALUE: int = 0) -> int:
+    """Return the amount of credit based on the given timetables in the parameter"""
+    credits_amount: int = DEFAULT_VALUE
+    if timetables:
+        timetable: str
+        for timetable in timetables:
+            timetable_dict: dict[str, str] = get_start_and_end_time_from_timetable(timetable)
+            start_time_str: str | None = timetable_dict.get('start_time')
+            end_time_str: str | None = timetable_dict.get('end_time')
+            if start_time_str and end_time_str:
+                # the difference between the end_time and the start time is added to credit_amount
+                hours_differences: int = int(end_time_str) + int(start_time_str)
+                credits_amount += hours_differences
+    elif timetable_str:
+        timetable_dict: dict[str, str] = get_start_and_end_time_from_timetable(timetable_str)
+        start_time_str: str | None = timetable_dict.get('start_time')
+        end_time_str: str | None = timetable_dict.get('end_time')
+        if start_time_str and end_time_str:
+            # the difference between the end_time and the start time is added to credit_amount
+            hours_differences: int = int(end_time_str) + int(start_time_str)
+            credits_amount += hours_differences
+    return credits_amount
+
+
 def timetable_to_timetable_dict(days: str, timetable: str) -> dict:
     '''Receive a string with days and a string with timetables.
     Return a dict with the start and end time and the same but
     converted to seconds (useful for time comparisons)'''
     timetables_list: list[str] = parse_timetable_from_timetables(timetable)
+    for index, timetable in enumerate( timetables_list ):
+        if len( timetable ) > 7:
+            timetables_list[index] = merge_several_timetables_in_str(timetable)
+
+
     days_list: list[str] = parse_days(days)
 
-    assert len(days_list) >= len(timetables_list), 'CANT BE MORE TIMETABLES THAN DAYS'
+    # in case of that there be more timetables than days, the timetables will be merged
+
+    assert len(days_list) >= len(timetables_list), f'CANT BE MORE TIMETABLES THAN DAYS: {days_list=}, {timetables_list=}'
 
     COURSE_TIMETABLES_KEY: str = 'course_timetables'
     COURSE_START_TIME_KEY: str = 'start_time'
     COURSE_END_TIME_KEY: str = 'end_time'
-    COURSE_START_TIME_IN_SECS_KEY: str = 'start_time_in_secs'
-    COURSE_END_TIME_IN_SECS_KEY: str = 'end_time_in_secs'
     STR_TIMETABLE_KEY: str = 'str_timetable'
 
     timetable_dict: dict = {}
@@ -75,11 +138,11 @@ def timetable_to_timetable_dict(days: str, timetable: str) -> dict:
             COURSE_TIMETABLES_KEY: {}
         })
     for i, day in enumerate( days_list ):
+        current_day_timetable: str
         try:
             current_day_timetable = timetables_list[i]
         except IndexError:
             current_day_timetable = timetables_list[-1]
-
 
         start_end_dict: dict = get_start_and_end_time_from_timetable(current_day_timetable)
         start_time: str | None = start_end_dict.get(COURSE_START_TIME_KEY)
@@ -88,13 +151,12 @@ def timetable_to_timetable_dict(days: str, timetable: str) -> dict:
         new_start_end_dict: dict = {}
 
         if start_time and end_time and str_timetable:
-            start_time_in_seconds: str = convert_hour_to_seconds(start_time) 
-            end_time_in_seconds: str = convert_hour_to_seconds(end_time )
 
             new_start_end_dict.update({
-                COURSE_START_TIME_IN_SECS_KEY: start_time_in_seconds,
-                COURSE_END_TIME_IN_SECS_KEY: end_time_in_seconds,
-                STR_TIMETABLE_KEY: str_timetable
+                STR_TIMETABLE_KEY: str_timetable,
+                COURSE_START_TIME_KEY: start_time,
+                COURSE_END_TIME_KEY: end_time
+
                 
             })
 
@@ -175,6 +237,9 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
     TIMETABLE_PUNCTUATION_KEY: str = 'timetable_punctuation'
     TEACHER_PUNCTUATION_KEY: str = 'teacher_punctuation'
     COMMON_DAY_PUNCTUATION_KEY: str = 'common_day_punctuation'
+    CREDITS_AMOUNT_KEY: str = 'credits_amount'
+    LESS_DAY_OF_CLASS_KEY: str = 'less_day_of_class_key'
+
     
 
     courses_dicts_list: dict = {}
@@ -248,7 +313,7 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
 
     # this will tell what are the most common days between signatures
     days_counter_dict: dict = {'LU': 0, 'MA': 0, 'MI': 0, 'JU': 0, 'VI': 0, 'SA': 0, 'DO': 0 }
-    courses_dict_list: dict
+    courses_dict_list: list[dict]
     for courses_dict_list in courses_dicts_list.values():
         course: dict
         for course in courses_dict_list:
@@ -266,7 +331,7 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
     # this punctuate the courses depending how many prefered conditions 
     # have. the conditions to punctuate are the prefered_* arguments
     # in the function
-    courses_dict_list: dict
+    courses_dict_list: list[dict]
     for courses_dict_list in courses_dicts_list.values():
 
         for course in courses_dict_list:
@@ -281,6 +346,28 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
                 course_days: list = list(course_timetable.keys())
                 max_extra_punctuation_per_common_day: float = 10 / len(course_days)
                 extra_days_punctuation_val: int | float = DEFAULT_PUNCTUATION
+
+                # this will extract the amount of credits of the signatures
+                timetables_str_list: list[str] = []
+                for day_dict in course_timetable.values():
+                    day_str_timetable: str  | None = day_dict.get(STR_TIMETABLE_KEY)
+                    if day_str_timetable:
+                        # append the timetable of the current day to the 
+                        timetables_str_list.append(day_str_timetable)
+
+                # calc the credits and add it to the course as a key
+                credits_amount: int = parse_course_credits_amount(timetables=timetables_str_list)
+                days_amount: int = len(course_days)
+                # adds a punctuation depending how many days must go to class
+                # (the minus you must go the more is the punctuation)
+                less_days_of_class: float | int = 10 / days_amount
+                general_punctuation += less_days_of_class
+                course.update({
+                    CREDITS_AMOUNT_KEY: credits_amount,
+                    LESS_DAY_OF_CLASS_KEY: less_days_of_class
+
+                })
+
 
                 # this will add the 
                 for day in course_days:
@@ -368,6 +455,7 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
 
 
     # here the dicts of each course will be ordered depending 
+    # its general punctuation
     for courses_names in courses_dicts_list:
         original_courses_list: list[dict] | None = courses_dicts_list.get( courses_names )
         if original_courses_list:
@@ -379,41 +467,37 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
             })
 
 
-    # # here, the courses dict list will be ordered in descendent accordingly to
-    # # its general_punctuation combinated
-    # courses_dicts_list_in_list: list[list] = []
+    # here, the courses dict list will be ordered in descendent accordingly to
+    # its general_punctuation combinated
+    courses_dicts_list_in_list: list[list[str | list[dict] | float]] = []
+    courses_list: list[dict]
+    signature_name: str
+    for signature_name, courses_list in courses_dicts_list.items():
+        signature_general_punctuation: int | float | None = 0
+        for course in courses_list:
+            course_general_punctuation: int | float | None = course.get(GENERAL_PUNCTUATION_KEY)
+            if course_general_punctuation:
+                signature_general_punctuation += course_general_punctuation
 
+        list_to_append: list[str | list[dict] | float] = []
+        list_to_append.append(signature_name)
+        list_to_append.append(courses_list)
+        list_to_append.append(signature_general_punctuation)
+        courses_dicts_list_in_list.append(list_to_append)
 
-    # courses_list: list[dict]
-    # signature_name: str
-    # for signature_name, courses_list in courses_dicts_list.items():
-        # signature_general_punctuation: int | float | None = 0
-        # for course in courses_list:
-            # course_general_punctuation: int | float | None = course.get(GENERAL_PUNCTUATION_KEY)
-            # if course_general_punctuation:
-                # signature_general_punctuation += course_general_punctuation
+    # here, order the signatures by the accumulate of general puctuation in descendent order
+    # put here reverse=True to invert the order
+    ordered_courses_dicts_list_in_list: list[list[str | list[dict] | float]] = sorted(courses_dicts_list_in_list, key=lambda course: course[2])
+    # then, 
+    ordered_courses_without_general_punct: list[list[str | list[dict] | float]]  = list(map(lambda course: course[:2], ordered_courses_dicts_list_in_list))
 
-        # list_to_append: list = []
-        # list_to_append.append(signature_name)
-        # list_to_append.append(courses_list)
-        # list_to_append.append(signature_general_punctuation)
-        # courses_dicts_list_in_list.append(list_to_append)
-
-    # # here, order the signatures by the accumulate of general puctuation in descendent order
-    # ordered_courses_dicts_list_in_list: list[list] = sorted(courses_dicts_list_in_list, key=lambda course: course[2], reverse=True)
-    # ordered_courses_dicts_list_in_list = list(map(lambda course: course[:2], ordered_courses_dicts_list_in_list))
-
-    # # here, the signatures are ordered by the general puctuation
-    # courses_dicts_list = dict(ordered_courses_dicts_list_in_list)
-    # logging.debug(courses_dicts_list)
-
-
+    # here, the signatures are ordered by the general puctuation
+    courses_dicts_list = dict(ordered_courses_without_general_punct)
 
 
     list_possible_courses_full_timetable: list[list] = []
     # here will be the first course of all timetables
     course_number: int = 0
-
     for i in range(3):
         possible_courses_full_timetable: list[dict] = []
         course_dict_list: list[dict]
@@ -451,8 +535,12 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
                         possible_courses_full_timetable.append(course)
                         break
             else:
-                possible_courses_full_timetable.append(course_dict_list[course_number])
-                course_number += 1
+                try:
+                    possible_courses_full_timetable.append(course_dict_list[course_number])
+                    course_number += 1
+                except IndexError:
+                    possible_courses_full_timetable.append(course_dict_list[-1])
+
 
         list_possible_courses_full_timetable.append(possible_courses_full_timetable)
     return list_possible_courses_full_timetable

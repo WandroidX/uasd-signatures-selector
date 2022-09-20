@@ -12,7 +12,7 @@ def get_signatures_from_file(campus_where: str,  signatures_file: str, signature
     active_sheet_max_row = active_sheet.max_row
 
     signatures: list[dict] = []
-    SIGNATURE_NAME_INDEX: int = 4
+    SIGNATURE_NAME_INDEX: int = 3
     CAMPUS_NAME_INDEX: int = 8
 
     for i in range(1, active_sheet_max_row):
@@ -20,10 +20,9 @@ def get_signatures_from_file(campus_where: str,  signatures_file: str, signature
         current_row_campus = str(active_sheet.cell(row = i, column = CAMPUS_NAME_INDEX).value)
         current_row_signature_name= str(active_sheet.cell(row = i, column = SIGNATURE_NAME_INDEX).value)
         if current_row_campus == campus_where:
-
             if current_row_signature_name in signatures_names:
                 for x, name in zip(useful_columns_index, useful_columns_names):
-                    current_cell = str(active_sheet.cell(row = i, column = x).value)
+                    current_cell: str = str(active_sheet.cell(row = i, column = x).value)
                     if current_cell:
                         current_signature_dict.update({name: current_cell})
                     else:

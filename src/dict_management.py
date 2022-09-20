@@ -26,7 +26,7 @@ def merge_dicts(dicts_list: list[dict]):
     # one value, and assigning it to merged dict
     for i, key in enumerate( first_dict_keys ):
         merged_dict.update({
-            key: ' '.join(all_keys_values[i])
+            key: ','.join(all_keys_values[i])
         })
 
     return merged_dict
