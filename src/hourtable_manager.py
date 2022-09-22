@@ -213,6 +213,10 @@ def compare_timetable_interference(first_timetable: str | dict, second_timetable
 
 def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list[int]] :
     times_of_same_credit: dict[int, int] = {}
+    # sort credits_list: neccesary to ensure found the best combination
+    credits_list.sort(reverse=True)
+    logging.info(f'{ credits_list =}')
+
     max_credits_per_day: int = parse_course_credits_amount(time_available)
     # logging.info(f'{max_credits_per_day=}')
     # adds the differents credits of the courses (just once) e.g. [1, 2, 4] if there are courses
@@ -248,6 +252,7 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
     index: int = -1
     # here, will be built the credits combinations
     for credit_number, credit_times in list(times_of_same_credit.items()):
+        max_credits_per_day = original_max_credits_per_day
 
         # logging.debug(f'{ credit_number= }')
         if credit_number not in credits_left:
@@ -256,26 +261,51 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
         key_in_credits_left: bool = True
         while key_in_credits_left:
             # logging.debug('in while')
+            logging.debug('inside while: before conditions')
+            logging.debug(f'{ credit_number= }')
+            logging.debug(f'{ credit_times= }')
             max_amount_of_credit: int = credit_times * credit_number
-            if max_amount_of_credit == max_credits_per_day:
-                credits_left.pop(credit_number)
+            logging.debug(f'{ max_amount_of_credit= }')
+            if max_amount_of_credit == original_max_credits_per_day:
                 key_in_credits_left: bool = False
                 daily_credits.append([credit_number] * credit_times)
+                credits_left.pop(credit_number)
                 # logging.debug('is equal to max_credits_per_day')
-            elif max_amount_of_credit < max_credits_per_day:
-                credits_left.pop(credit_number)
-                key_in_credits_left: bool = False
-                daily_credits.append([credit_number] * credit_times)
-                max_credits_per_day -= max_amount_of_credit
-                # logging.debug('is lesser to max_credits_per_day')
+            elif max_amount_of_credit < original_max_credits_per_day:
+                try:
+                    total_credits_of_last_day: int = sum(daily_credits[-1])
+                except IndexError:
+                    total_credits_of_last_day: int = 0
+
+                credits_left_to_fill_last_day: int = total_credits_of_last_day - original_max_credits_per_day
+                if credits_left_to_fill_last_day == max_amount_of_credit:
+                    credits_left.pop(credit_number)
+                    key_in_credits_left: bool = False
+                    daily_credits.append([credit_number] * credit_times)
+                elif max_amount_of_credit > credits_left_to_fill_last_day :
+
+                    credit_times = credits_left_to_fill_last_day // credit_number
+                    daily_credits[index].extend([credit_number] * credit_times)
+                    credits_left[credit_number] -= credit_times
+                    if credits_left[credit_number] == 0:
+                        credits_left.pop(credit_number)
+                        key_in_credits_left: bool = False
+                else:
+                    credits_left.pop(credit_number)
+                    key_in_credits_left: bool = False
+                    daily_credits.append([credit_number] * credit_times)
+                    max_credits_per_day -= max_amount_of_credit
+                    # logging.debug('is lesser to max_credits_per_day')
             elif max_amount_of_credit > max_credits_per_day:
                 number_of_times = max_credits_per_day // credit_number
+                # logging.debug(f'this is {number_of_times=}')
+                # logging.debug(f'this is {credit_number=}')
                 if number_of_times:
                     if number_of_times > credits_left[credit_number]:
+                        # logging.info(f'this is {credits_left[credit_number]=}')
+                        # logging.info(f'this is {credit_number=}')
                         number_of_times = credits_left[credit_number]
                     # logging.debug('in number of times')
-                    # logging.info(f'this is {credits_left[credit_number]=}')
-                    # logging.info(f'this is {credit_number=}')
                     daily_credits.append([credit_number] * number_of_times)
                     credits_left[credit_number] -= number_of_times
                     if credits_left[credit_number] == 0:
@@ -298,6 +328,7 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
     
         index: int
         for index, day_of_credits in enumerate(list(daily_credits)):
+            # logging.debug(f'trying to fill day_of_credits n={index}')
             total_credits_of_last_day: int = sum(day_of_credits)
 
             # this verify if there is a day_of_credits that needs fill
@@ -313,9 +344,9 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                 if credit_number_filler:
                     credit_number = credits_left_to_fill_last_day
                     daily_credits[index].append(credit_number)
+                    credits_left[ credit_number ] -= 1
                     # logging.warning(f'{ credits_left =}')
                     # logging.warning(f'{ credit_number =} before the error')
-                    credits_left[ credit_number ] -= 1
                     if credits_left[credit_number] == 0:
                         credits_left.pop(credit_number)
                         key_in_credits_left: bool = False
@@ -327,6 +358,9 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                     # logging.debug(f'{ max_amount_of_credit_list= }')
                     if not max_amount_of_credit_list and not credit_number_list:
                         continue
+                    logging.error(f'{ credits_left_to_fill_last_day =}')
+                    logging.error(f'{ max_amount_of_credit_list= }')
+
                     if credits_left_to_fill_last_day in max_amount_of_credit_list:
                         # logging.info('credits fits perfectly')
                         index_of_filler: int = max_amount_of_credit_list.index(credits_left_to_fill_last_day)
@@ -351,49 +385,170 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                                         key_in_credits_left: bool = False
                                     break
                         else:
-                            # in case of not find a proper credit_number 
-                            credit_list_to_append: list[int] = []
-                            # logging.debug(f'{credit_number_list=}')
-                            # logging.debug(f'{max_amount_of_credit_list=}')
-                            credit_number = credit_number_list[0]
-                            credit_times = credits_left[credit_number]
-                            max_amount_of_credit = max_amount_of_credit_list[0]
-                            # if credit_number is multiplier of credits_left_to_fill_last_day
-                            # surely will be possible fill the hole of credits
-                            if max_amount_of_credit < credits_left_to_fill_last_day:
-                                credit_list_to_append.extend([credit_number] * credit_times)
-                                credits_will_left: int = credits_left_to_fill_last_day - max_amount_of_credit
-                                try:
-                                    for i, max_amount_of_credit2 in enumerate( max_amount_of_credit_list[1: ] , 1):
-                                        credit_number = credit_number_list[i]
-                                        if credits_will_left >=  max_amount_of_credit2:
-                                            credit_times = credits_left[credit_number]
+                            ### vision: if comes here, means that there is no credit_number that 
+                            ###can fill the credits left (if the max_amount of credits_number_list are
+                            ### lesser than the required or greater but not multiplier or there are no
+                            ### equals or there are no exact number filler)
+                            ### will try fo find a combination of max_amounts that can fill it
+                            ### by 
+                            # this will find if there is a combination of max_amount_of_credit that
+                            # can fill the hole
+                            for i, max_amount in enumerate(list(  max_amount_of_credit_list ) ):
+                                credit_amount_left_to_fill: int = credits_left_to_fill_last_day - max_amount
+                                element_index: int = len(max_amount_of_credit_list) 
+                                combinated_credit_amount: int = sum(max_amount_of_credit_list)
+                                # if even with all the credits available cant fill the credit_day
+                                if combinated_credit_amount < credit_amount_left_to_fill:
+                                    for credit_number in  list(credit_number_list):
+                                        credit_times: int = credits_left[credit_number]
+                                        daily_credits[index].extend([credit_number] * credit_times)
+                                        credits_left.pop(credit_number)
+                                    break
+                                elif combinated_credit_amount == credit_amount_left_to_fill:
+                                    logging.debug(combinated_credit_amount)
 
-                                            credits_will_left -= max_amount_of_credit2
-                                            credit_list_to_append.extend([credit_number] * credit_times)
-                                        elif credits_will_left < max_amount_of_credit2:
-                                            # if max_amount_of_credit2 and credit_number are multipliers
-                                            if credits_will_left % credit_number == 0:
-                                                credit_times = credits_will_left // credit_number
-                                                credits_will_left = 0
-                                                credit_list_to_append.extend([credit_number] * credit_times)
-                                            else:
-                                                if i == len(max_amount_of_credit_list):
-                                                    credit_times = credits_will_left // credit_number
-                                                    credits_will_left = credit_times * credit_number
-                                                    credit_list_to_append.extend([credit_number] * credit_times)
-                                                else:
-                                                    continue
+                                    for credit_number in  credit_number_list:
+                                        credit_times: int = credits_left[credit_number]
+                                        daily_credits[index].extend([credit_number] * credit_times)
+                                        credits_left[credit_number] -= credit_times
+                                        if credits_left[credit_number] == 0:
+                                            credits_left.pop(credit_number)
+                                            key_in_credits_left: bool = False
 
-                                            pass
 
-                                        if credits_will_left == 0:
-                                            break
-                                    else:
+                                while True:
+                                    # to avoid an error of index
+                                    if element_index == i:
                                         break
-                                except IndexError:
-                                    daily_credits[index].extend([credit_number] * credit_times)
-                                    credits_left.pop(credit_number)
+                                    element_index -= 1
+                                    combinated_credit_amount: int = sum(max_amount_of_credit_list[i:element_index])
+
+
+                                    amount_would_left: int =  combinated_credit_amount - credit_amount_left_to_fill
+                                    if combinated_credit_amount == credit_amount_left_to_fill:
+                                        logging.debug(combinated_credit_amount)
+
+
+                                        for credit_number in  credit_number_list[i: element_index]:
+                                            credit_times: int = credits_left[credit_number]
+                                            daily_credits[index].extend([credit_number] * credit_times)
+                                            credits_left[credit_number] -= credit_times
+                                            if credits_left[credit_number] == 0:
+                                                credits_left.pop(credit_number)
+                                                key_in_credits_left: bool = False
+
+                                        break
+                                    elif amount_would_left < 0:
+                                        amount_would_left2: int =  combinated_credit_amount - credit_amount_left_to_fill
+                                        # will try to find a multiplier of the amount lacking
+                                        for credit_number in  list(credit_number_list[element_index: ] ):
+                                            logging.info(f'in start of for { credits_left= }')
+                                            if credit_number not in credits_left:
+                                                logging.info(f'not in dict { credits_left= }')
+                                                logging.info(f'not in dict { credit_number= }')
+                                                continue
+                                            if amount_would_left2 % credit_number == 0:
+                                                # try to add all the credit_number before the current
+                                                for credit_number2 in  credit_number_list[i: element_index] :
+                                                    credit_times: int = credits_left[credit_number2]
+                                                    daily_credits[index].extend([credit_number2] * credit_times)
+                                                    credits_left[credit_number2] -= credit_times
+                                                    if credits_left[credit_number2] == 0:
+                                                        credits_left.pop(credit_number2)
+                                                        key_in_credits_left: bool = False
+
+                                                # try to add the last credit_number found
+                                                credit_times = amount_would_left2 // credit_number
+                                                daily_credits[index].extend([credit_number] * credit_times)
+                                                logging.info(f'before issue { credits_left= }')
+                                                logging.info(f'before issue { credit_number= }')
+                                                credits_left[credit_number] -= credit_times
+                                                logging.warning(f'after issue { credits_left= }')
+                                                if credits_left[credit_number] == 0:
+                                                    credits_left.pop(credit_number)
+                                                    key_in_credits_left: bool = False
+                                                break
+
+                                # if combinated_credit_amount > credit_amount_left_to_fill:
+                                # ### heeeeereeeee
+
+
+                                # pass
+
+                            # # in case of not find a proper credit_number 
+                            # credit_list_to_append: list[int] = []
+                            # # logging.debug(f'{credit_number_list=}')
+                            # # logging.debug(f'{max_amount_of_credit_list=}')
+                            # credit_number = credit_number_list[0]
+                            # credit_times = credits_left[credit_number]
+                            # max_amount_of_credit = max_amount_of_credit_list[0]
+                            # # if credit_number is multiplier of credits_left_to_fill_last_day
+                            # # surely will be possible fill the hole of credits
+                            # if max_amount_of_credit < credits_left_to_fill_last_day:
+                                # logging.debug('needs more lists to fill')
+                                # credit_list_to_append.extend([credit_number] * credit_times)
+                                # credits_will_left: int = credits_left_to_fill_last_day - max_amount_of_credit
+                                # # verify if credits_will_left is a key in credits_left
+                                # credit_number_filler: int | None = credits_left.get(credits_will_left)
+                                # # logging.info(f'{ credit_number_filler= }')
+
+                                # logging.debug(f'{credits_will_left=}')
+                                # if credit_number_filler:
+                                    # credit_number = credits_left_to_fill_last_day
+                                    # credit_list_to_append.append(credit_number)
+                                    # daily_credits[index].extend(credit_list_to_append)
+                                    # # logging.warning(f'{ credits_left =}')
+                                    # # logging.warning(f'{ credit_number =} before the error')
+                                    # credits_left[ credit_number ] -= 1
+                                    # if credits_left[credit_number] == 0:
+                                        # credits_left.pop(credit_number)
+                                        # key_in_credits_left: bool = False
+                                # else:
+                                    # try:
+                                        # # here, will try to find a combination of two or three that 
+                                        # for i, credit_number2 in enumerate( credit_number_list[1: ] , 1):
+                                            # if credits_will_left % credit_number2 == 0:
+                                                # max_amount_of_credit = max_amount_of_credit_list[i] 
+                                                # if max_amount_of_credit >= credits_will_left:
+                                                    # credit_times2 = credits_will_left // credit_number2
+                                                    # daily_credits[index].extend([credit_number] * credit_times)
+                                                    # daily_credits[index].extend([credit_number2] * credit_times2)
+                                                    # credits_left[credit_number] -= credit_times
+                                                    # credits_left[credit_number2] -= credit_times2
+                                                    # if credits_left[credit_number] == 0:
+                                                        # credits_left.pop(credit_number)
+                                                        # key_in_credits_left: bool = False
+                                                    # if credits_left[credit_number2] == 0:
+                                                        # credits_left.pop(credit_number2)
+                                                        # key_in_credits_left: bool = False
+                                                    # break
+                                                # else:
+                                                    # combinated_credits_will_left = credits_will_left - max_amount_of_credit
+                                                    # try:
+                                                        # combinated_credit_number = credits_list[i+1]
+                                                        # if combinated_credits_will_left % combinated_credit_number == 0:
+                                                            # if max_amount_of_credit_list[i+1] >= combinated_credits_will_left:
+                                                                # combinated_credit_times = combinated_credits_will_left // credit_number2
+                                                                # # in case of found the three elements to fill the current list of credits, will add all of them first to credit_list_to_append  and
+                                                                # # then to daily_credits
+                                                                # credit_list_to_append.extend([credit_number] * credit_times)
+                                                                # credit_list_to_append.extend([combinated_credit_number] * combinated_credit_times)
+                                                                # daily_credits[index].extend(credit_list_to_append)
+                                                                # credits_left[combinated_credit_number] -= combinated_credit_times
+                                                                # if credits_left[combinated_credit_number] == 0:
+                                                                    # credits_left.pop(combinated_credit_number)
+                                                                    # key_in_credits_left: bool = False
+                                                                # break
+                                                    # except IndexError:
+                                                        # continue
+
+                                            # if credits_will_left == 0:
+                                                # break
+                                        # else:
+                                            # break
+                                    # except IndexError:
+                                        # daily_credits[index].extend([credit_number] * credit_times)
+                                        # credits_left.pop(credit_number)
 
     # logging.debug('after try to fill')
 

@@ -191,6 +191,12 @@ class TestCalcCredits(unittest.TestCase):
         self.assertEqual(1, 1)
 
 
+    def test_calc_credits6(self):
+        list_of_credits: list[int] = [random.randint(1, 5) for i in range(0, 10)]
+        time_available: str = '07 a 15'
+        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        print(credits_ordered)
+        self.assertEqual(1, 1)
 
 
 if __name__ == "__main__":
