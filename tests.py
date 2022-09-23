@@ -156,49 +156,80 @@ from src import file_management as filema
     
 
 class TestCalcCredits(unittest.TestCase):
-    def test_calc_credits1(self):
-        list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3]
-        time_available: str = '07 a 15'
-        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
-        print(credits_ordered)
-        self.assertEqual(1, 1)
+    # def test_calc_credits1# (self):
+        # list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
-    def test_calc_credits2(self):
-        list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5]
-        time_available: str = '07 a 15'
-        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
-        print(credits_ordered)
-        self.assertEqual(1, 1)
-    def test_calc_credits3(self):
-        list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5]
-        time_available: str = '07 a 15'
-        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
-        print(credits_ordered)
-        self.assertEqual(1, 1)
+    # def test_calc_credits2(self):
+        # list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
+    # def test_calc_credits3(self):
+        # list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
-    def test_calc_credits4(self):
-        list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5, 3]
-        time_available: str = '07 a 15'
-        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
-        print(credits_ordered)
-        self.assertEqual(1, 1)
+    # def test_calc_credits4(self):
+        # list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5, 3]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
-    def test_calc_credits5(self):
-        list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5, 3, 2, 1]
-        time_available: str = '07 a 15'
-        credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
-        print(credits_ordered)
-        self.assertEqual(1, 1)
+    # def test_calc_credits5(self):
+        # list_of_credits: list[int] = [1, 2, 3, 4, 1, 2, 3, 5, 5, 3, 2, 1]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
+    # def test_calc_credits6(self):
+        # list_of_credits_in_list: list[list[int]] = [[5, 3], [5, 1], [5, 1, 1, 1], [5, 1, 1, 1], [5, 1, 1, 1], [4, 4], [2]]
+        # list_of_credits: list[int] = [number for credit_list in list_of_credits_in_list for number in credit_list]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
-    def test_calc_credits6(self):
+    def test_calc_credits7(self):
         list_of_credits: list[int] = [random.randint(1, 5) for i in range(0, 10)]
         time_available: str = '07 a 15'
         credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
         print(credits_ordered)
         self.assertEqual(1, 1)
 
+    # def test_calc_credits8(self):
+        # list_of_credits: list[int] = [random.randint(1, 5) for i in range(0, 10)]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
+
+
+    # def test_calc_credits9(self):
+        # list_of_credits: list[int] = [random.randint(1, 5) for i in range(0, 10)]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
+
+    # def test_calc_credits10(self):
+        # list_of_credits: list[int] = [random.randint(1, 5) for i in range(0, 10)]
+        # time_available: str = '07 a 15'
+        # credits_ordered = timetable_manager.calc_minimun_days(list_of_credits, time_available)
+        # print(credits_ordered)
+        # self.assertEqual(1, 1)
 
 if __name__ == "__main__":
-    unittest.main()
+    log_file = './hourtable.log'
+    with open(log_file, "a") as f:
+       runner = unittest.TextTestRunner(f)
+       unittest.main(testRunner=runner)
 
