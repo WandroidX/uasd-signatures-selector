@@ -48,3 +48,4 @@ def get_dicts_from_dicts_list(dicts_list: list[dict], condition_dict: dict, can_
                 return found_dicts
 
     return found_dicts
+

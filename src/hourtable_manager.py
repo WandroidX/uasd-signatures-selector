@@ -1,9 +1,9 @@
-import re, functools
+import re
 import logging
 from typing import Match, Pattern
 
 
-logging.basicConfig(format='[%(asctime)s] %(levelname)s %(message)s', level=logging.DEBUG, filemode='a',
+logging.basicConfig(format='[%(asctime)s] - %(levelname)s - filename: %(filename)s - lineno: %(lineno)s - function name: %(funcName)s -  %(message)s', level=logging.DEBUG, filemode='a',
                     filename='./hourtable.log')
 
 
@@ -212,14 +212,19 @@ def compare_timetable_interference(first_timetable: str | dict, second_timetable
         return True
     return False
 
-def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list[int]] :
+def calc_minimun_days(credits_list: list[int], time_available: str | list[str]) -> list[list[int]] :
     times_of_same_credit: dict[int, int] = {}
     # sort credits_list: neccesary to ensure found the best combination
     credits_list.sort(reverse=True)
-    logging.info(f'{ credits_list =}')
 
-    max_credits_per_day: int = parse_course_credits_amount(time_available)
-    # logging.info(f'{max_credits_per_day=}')
+    # if time_available is a list, will find the max_credits_per_day calculating and adding all the 
+    # str in that list
+    if isinstance(time_available, list):
+        max_credits_per_day = 0
+        for time_str in time_available:
+            max_credits_per_day: int =+ parse_course_credits_amount(time_str)
+    else:
+        max_credits_per_day: int = parse_course_credits_amount(time_available)
     # adds the differents credits of the courses (just once) e.g. [1, 2, 4] if there are courses
     # with 1, 2 and 4 credits
     for credit in credits_list:
@@ -234,23 +239,15 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
             else:
                 times_of_same_credit[credit] += 1
 
-    # logging.info(f'{ times_of_same_credit= }')
     max_amount_of_credit_list: list[int] = [credit_number * credit_times for credit_number, credit_times in list( times_of_same_credit.items() )]
-    # logging.info(f'{ max_amount_of_credit_list= }')
     total_credits: int = sum(max_amount_of_credit_list)
     original_max_credits_per_day: int = max_credits_per_day
     # this will get the minimun days of class that are neccesary
     minimun_days_float: float = total_credits /  original_max_credits_per_day
-    logging.debug(f'before add 1 {minimun_days_float=}')
     if not minimun_days_float.is_integer():
         minimun_days_float +=  1
-        logging.debug(f'after add 1 {minimun_days_float=}')
     minimun_days = int(minimun_days_float)
-    logging.debug(f'{minimun_days=}')
 
-    # logging.debug(f'\n{total_credits=}')
-    # logging.debug(f'\n{max_credits_per_day=}')
-    # logging.info(f'{ minimun_days =}')
     credits_left: dict[int, int] = times_of_same_credit
     daily_credits: list[list[int]] = []
     index: int = -1
@@ -258,51 +255,32 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
     for credit_number in list(times_of_same_credit):
         max_credits_per_day = original_max_credits_per_day
 
-        # logging.debug(f'{ credit_number= }')
         if credit_number not in credits_left:
             continue
         key_in_credits_left: bool = True
         while key_in_credits_left:
             if not credits_left:
                 break
-            # logging.debug('in while')
-            # logging.debug('inside while: before conditions')
-            # logging.debug(f'{ credit_number= }')
-            # logging.debug(f'{ credit_times= }')
             credit_times: int = credits_left[credit_number]
             max_amount_of_credit: int = credit_times * credit_number
-            # logging.debug(f'{ max_amount_of_credit= }')
-            try:
-                # logging.debug(f'{daily_credits[-1]=}')
+            if daily_credits:
                 total_credits_of_last_day: int = sum(daily_credits[-1])
-                # logging.debug(f'{total_credits_of_last_day=}')
                 if total_credits_of_last_day < original_max_credits_per_day:
                     credits_left_to_fill_last_day: int = original_max_credits_per_day - total_credits_of_last_day
-                    # logging.debug(f'{credits_left_to_fill_last_day=}')
-                    # logging.debug(f'{credit_number % credits_left_to_fill_last_day= }')
                     if credits_left_to_fill_last_day % credit_number == 0:
-                        # logging.debug(f'is multiplier of credits_left')
                         number_of_times: int = credits_left_to_fill_last_day // credit_number
-                        # logging.debug(f'{number_of_times=}')
-                        # logging.debug(f'this is {number_of_times=}')
-                        # logging.debug(f'this is {credit_number=}')
                         if number_of_times > credits_left[credit_number]:
-                            # logging.info(f'this is {credits_left[credit_number]=}')
-                            # logging.info(f'this is {credit_number=}')
                             number_of_times = credits_left[credit_number]
-                        # logging.debug('in number of times')
 
                         daily_credits[-1].extend([credit_number] * number_of_times)
                         credits_left[credit_number] -= number_of_times
                         if credits_left[credit_number] == 0:
                             credits_left.pop(credit_number)
                             key_in_credits_left: bool = False
-            except IndexError:
-                logging.debug('error because is the first element and daily_credits is empty')
-
+                            break
+            credit_times: int = credits_left[credit_number]
+            max_amount_of_credit: int = credit_times * credit_number
             if max_amount_of_credit <= original_max_credits_per_day:
-                # logging.debug(f'this is {credits_left=}')
-                # logging.debug(f'this is {credit_number=}')
                 # in case of come here but the credits_left dict is empty
                 if not credits_left:
                     break
@@ -310,91 +288,50 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                 key_in_credits_left: bool = False
                 daily_credits.append([credit_number] * credit_times)
                 credits_left.pop(credit_number)
-                # logging.debug('is equal to max_credits_per_day')
             elif max_amount_of_credit > max_credits_per_day:
                 number_of_times = max_credits_per_day // credit_number
-                # logging.debug(f'this is {number_of_times=}')
-                # logging.debug(f'this is {credit_number=}')
                 if number_of_times:
                     if number_of_times > credits_left[credit_number]:
-                        # logging.info(f'this is {credits_left[credit_number]=}')
-                        # logging.info(f'this is {credit_number=}')
                         number_of_times = credits_left[credit_number]
-                    # logging.debug('in number of times')
                     daily_credits.append([credit_number] * number_of_times)
                     credits_left[credit_number] -= number_of_times
                     if credits_left[credit_number] == 0:
                         credits_left.pop(credit_number)
                         key_in_credits_left: bool = False
                 else:
-                    # logging.debug('not in number of times')
                     number_of_times = 1
-                    # logging.info(f'this is {number_of_times=}')
-                    # logging.info(f'this is {credit_number=}')
                     daily_credits.append([credit_number] * number_of_times)
                     credits_left[credit_number] -= number_of_times
                     if credits_left[credit_number] == 0:
                         credits_left.pop(credit_number)
                         key_in_credits_left: bool = False
-                # logging.debug('is greater to max_credits_per_day')
 
 
 
     
         index: int
         for index, day_of_credits in enumerate(list(daily_credits)):
-            # logging.debug(f'trying to fill day_of_credits n={index}')
             total_credits_of_last_day: int = sum(day_of_credits)
-
             # this verify if there is a day_of_credits that needs fill
             if total_credits_of_last_day < original_max_credits_per_day:
-                # logging.debug('in tried to fill')
                 credits_left_to_fill_last_day: int = original_max_credits_per_day - total_credits_of_last_day
-                # logging.debug(f'{ total_credits_of_last_day= }')
-                # logging.debug(f'{ credits_left_to_fill_last_day= }')
                 # try to find a credit number that can fill the hole of credits
                 credit_number_filler: int | None = credits_left.get(credits_left_to_fill_last_day)
-                # logging.info(f'{ credit_number_filler= }')
 
                 if credit_number_filler:
-                    # logging.warning(f'1: { credits_left =} before the error')
-                    # logging.warning(f'1: before supposed issue: { credits_left =}')
-                    # logging.warning(f'1: before supposed issue: { daily_credits =}')
                     credit_number: int = credits_left_to_fill_last_day
-                    # logging.warning(f'before supposed issue: { credits_left =}')
                     daily_credits[index].append(credit_number)
                     credits_left[ credit_number ] -= 1
-                    # logging.warning(f'1: after supposed issue: { credits_left =}')
-                    # logging.warning(f'1: after supposed issue: { daily_credits =}')
-                    # logging.warning(f'1: after supposed issue: { credit_number =}')
-                    # logging.warning(f'after supposed issue: { credit_times =}')
-                    # logging.warning(f'{ credit_times =} before the error')
-                    # logging.warning(f'after supposed issue: { credits_left =}')
-                    # logging.warning(f'{ credit_number =} before the error')
                     if credits_left[credit_number] == 0:
                         credits_left.pop(credit_number)
                         key_in_credits_left: bool = False
                 else:
-                    # logging.warning(f'2: before supposed issue: { credits_left =}')
-                    # logging.warning(f'2: before supposed issue: { daily_credits =}')
-                    # logging.warning(f'2: before supposed issue: { credit_number =}')
                     max_amount_of_credit_list: list[int] = [credit_number * credit_times for credit_number, credit_times in list( credits_left.items() )]
                     credit_number_list: list[int] = [credit_number for credit_number in list( credits_left )]
-                    # logging.warning(f'{ max_amount_of_credit_list =}')
-                    # logging.warning(f'{ credit_number_list =}')
-                    # logging.warning(f'2: after supposed issue: { credits_left =}')
-                    # logging.warning(f'2: after supposed issue: { daily_credits =}')
-                    # logging.warning(f'2: after supposed issue: { credit_number =}')
-                    # logging.info('this is in the begining')
-                    # logging.debug(f'{ credit_number_list= }')
-                    # logging.debug(f'{ max_amount_of_credit_list= }')
                     if not max_amount_of_credit_list and not credit_number_list:
                         continue
-                    # logging.error(f'{ credits_left_to_fill_last_day =}')
-                    # logging.error(f'{ max_amount_of_credit_list= }')
 
                     if credits_left_to_fill_last_day in max_amount_of_credit_list:
-                        # logging.info('credits fits perfectly')
                         index_of_filler: int = max_amount_of_credit_list.index(credits_left_to_fill_last_day)
                         credit_number: int = credit_number_list[index_of_filler]
                         credit_times = credits_left[credit_number]
@@ -405,57 +342,31 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                         i: int
                         for i, max_amount_of_credit in enumerate( max_amount_of_credit_list ):
                             if max_amount_of_credit > credits_left_to_fill_last_day:
-                                # logging.warning(f'3: before supposed issue: { credits_left =}')
-                                # logging.warning(f'3: before supposed issue: { daily_credits =}')
-                                # logging.warning(f'3: before supposed issue: { credit_number =}')
-                                # logging.warning(f'3: before supposed issue: { max_amount_of_credit =}')
-                                # logging.warning(f'3: before supposed issue: { i =}')
-                                # logging.warning(f'3: before supposed issue: { credits_left_to_fill_last_day =}')
                                 credit_number = credit_number_list[i]
                                 # if credit_number is multiplier of credits_left_to_fill_last_day
                                 # surely will be possible fill the hole of credits
                                 if credits_left_to_fill_last_day % credit_number == 0:
-                                    # logging.warning(f'4: before supposed issue: { credits_left =}')
-                                    # logging.warning(f'4: before supposed issue: { daily_credits =}')
-                                    # logging.warning(f'4: before supposed issue: { credit_number =}')
                                     credit_times = credits_left_to_fill_last_day // credit_number
-                                    # logging.warning(f'4: before supposed issue: { credit_times =}')
                                     daily_credits[index].extend([credit_number] * credit_times)
                                     credits_left[credit_number] -= credit_times
-                                    # logging.warning(f'4: after supposed issue: { credits_left =}')
-                                    # logging.warning(f'4: after supposed issue: { daily_credits =}')
-                                    # logging.warning(f'4: after supposed issue: { credit_number =}')
                                     if credits_left[credit_number] == 0:
                                         credits_left.pop(credit_number)
                                         key_in_credits_left: bool = False
                                     break
                         else:
-                            ### vision: if comes here, means that there is no credit_number that 
-                            ###can fill the credits left (if the max_amount of credits_number_list are
-                            ### lesser than the required or greater but not multiplier or there are no
-                            ### equals or there are no exact number filler)
-                            ### will try fo find a combination of max_amounts that can fill it
-                            ### by 
                             # this will find if there is a combination of max_amount_of_credit that
-                            # can fill the hole
+                            # can fill the hole of credits
                             for i, max_amount in enumerate(list(  max_amount_of_credit_list ) ):
                                 credit_amount_left_to_fill: int = credits_left_to_fill_last_day - max_amount
                                 element_index: int = len(max_amount_of_credit_list) 
-                                # logging.warning(f'5: before supposed issue: { credits_left =}')
-                                # logging.warning(f'5: before supposed issue: { daily_credits =}')
-                                # logging.warning(f'5: before supposed issue: { credit_number =}')
                                 combinated_credit_amount: int = sum(max_amount_of_credit_list)
                                 # if even with all the credits available cant fill the credit_day
                                 if combinated_credit_amount <= credit_amount_left_to_fill:
-                                    # logging.debug(combinated_credit_amount)
                                     for credit_number in  list(credit_number_list):
                                         credit_times: int = credits_left[credit_number]
                                         daily_credits[index].extend([credit_number] * credit_times)
                                         credits_left.pop(credit_number)
                                     break
-                                # logging.warning(f'5: after supposed issue: { credits_left =}')
-                                # logging.warning(f'5: after supposed issue: { daily_credits =}')
-                                # logging.warning(f'5: after supposed issue: { credit_number =}')
 
                                 while True:
                                     # to avoid an error of index
@@ -463,19 +374,13 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                                         break
                                     element_index -= 1
                                     combinated_credit_amount: int = sum(max_amount_of_credit_list[i:element_index])
-
-
                                     amount_would_left: int = credit_amount_left_to_fill - combinated_credit_amount
                                     if combinated_credit_amount == credit_amount_left_to_fill:
-                                        # logging.debug(combinated_credit_amount)
 
 
                                         for credit_number in  credit_number_list[i: element_index]:
                                             credit_times: int = credits_left[credit_number]
                                             daily_credits[index].extend([credit_number] * credit_times)
-                                            # logging.warning(f'6: before supposed issue: { credits_left =}')
-                                            # logging.warning(f'6: before supposed issue: { daily_credits =}')
-                                            # logging.warning(f'6: before supposed issue: { credit_number =}')
                                             credits_left[credit_number] -= credit_times
                                             if credits_left[credit_number] == 0:
                                                 credits_left.pop(credit_number)
@@ -483,18 +388,9 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
 
                                         break
                                     elif amount_would_left > 0:
-                                        # logging.warning(f'7: before supposed issue: { credits_left =}')
-                                        # logging.warning(f'7: before supposed issue: { daily_credits =}')
-                                        # logging.warning(f'7: before supposed issue: { credit_number =}')
                                         # will try to find a multiplier of the amount lacking
                                         for credit_number in  list(credit_number_list[element_index: ] ):
-                                            # logging.info(f'in start of for { credits_left= }')
-                                            # logging.warning(f'8: before supposed issue: { credits_left =}')
-                                            # logging.warning(f'8: before supposed issue: { daily_credits =}')
-                                            # logging.warning(f'8: before supposed issue: { credit_number =}')
                                             if credit_number not in credits_left:
-                                                # logging.info(f'not in dict { credits_left= }')
-                                                # logging.info(f'not in dict { credit_number= }')
                                                 continue
                                             if amount_would_left  % credit_number == 0:
                                                 # try to add the current credit_number
@@ -512,9 +408,6 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
                                                     break
                                                 else:
                                                     amount_would_left2 = amount_would_left - max_amount_of_credit 
-                                                # logging.warning(f'9: before supposed issue: { credits_left =}')
-                                                # logging.warning(f'9: before supposed issue: { daily_credits =}')
-                                                # logging.warning(f'9: before supposed issue: { credit_number =}')
 
                                                 for credit_number2 in  credit_number_list[i: element_index] :
                                                     if amount_would_left2  % credit_number2 == 0:
@@ -539,33 +432,18 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
 
                                                     credit_times: int = credits_left[credit_number2]
                                                     daily_credits[index].extend([credit_number2] * credit_times)
-
                                                     credits_left[credit_number2] -= credit_times
                                                     if credits_left[credit_number2] == 0:
                                                         credits_left.pop(credit_number2)
                                                         key_in_credits_left: bool = False
 
                                                 # try to add the last credit_number found
-                                                # logging.warning(f'10: before supposed issue: { amount_would_left  =}')
-                                                # logging.warning(f'10: before supposed issue: { credits_left =}')
-                                                # logging.warning(f'10: before supposed issue: { daily_credits =}')
-                                                # logging.warning(f'10: before supposed issue: { credit_number =}')
-                                                # logging.warning(f'10: before supposed issue: { credit_times =}')
-                                                # logging.info(f'before issue { credits_left= }')
-                                                # logging.info(f'before issue { credit_number= }')
-                                                # logging.warning(f'after issue { credits_left= }')
-                                                # logging.warning(f'11: before supposed issue: { credits_left =}')
-                                                # logging.warning(f'11: before supposed issue: { daily_credits =}')
-                                                # logging.warning(f'11: before supposed issue: { credit_number =}')
-                                                # logging.warning(f'11: before supposed issue: { credit_times =}')
                                                 break
 
 
     # here, will try to merge the day_of_credits (daily_credits list) that are lesser than 
     # the original_max_credits_per_day , will remove them from daily_credits
-    logging.debug(f'before trying to fill 2nd time: {daily_credits=}')
     daily_credits_lesser_than_max_credits: list[list[int]] = list(filter(lambda day_of_credit: sum(day_of_credit) < original_max_credits_per_day, daily_credits))
-    logging.debug(f'in trying to fill 2nd time: {daily_credits_lesser_than_max_credits=}')
     for day_of_credit in daily_credits_lesser_than_max_credits:
         daily_credits.remove(day_of_credit)
 
@@ -580,34 +458,83 @@ def calc_minimun_days(credits_list: list[int], time_available: str) -> list[list
             break
 
         max_amount_of_credit: int = sum(day_of_credits)
-        logging.debug(f'{day_of_credits=}')
         credits_left_to_fill_day: int = original_max_credits_per_day - max_amount_of_credit
-        logging.debug(f'{i=}')
-        logging.debug(f'{credits_left_to_fill_day=}')
-        try:
+        if i+1 < len(daily_credits_lesser_than_max_credits):
             for i_future, future_day_of_credits in enumerate( list(daily_credits_lesser_than_max_credits[i+1 :]), i+1):
                 for credit_number in list(future_day_of_credits):
-                    logging.debug(f'{credit_number=}')
                     if credit_number <= credits_left_to_fill_day:
-                        logging.debug(f'before pop {daily_credits_lesser_than_max_credits[i_future]=}')
-                        logging.debug(f'before pop {daily_credits_lesser_than_max_credits}')
-                        logging.debug(f'{i_future=}')
                         daily_credits_lesser_than_max_credits[i_future].remove(credit_number)
-                        logging.debug(f'after pop {daily_credits_lesser_than_max_credits[i_future]=}')
                         day_of_credits.append(credit_number)
-                        logging.debug(f'{day_of_credits=}')
                         credits_left_to_fill_day -= credit_number
-        except IndexError:
-            logging.debug('there was an index error')
-            pass
         daily_credits.append(day_of_credits)
     if len(daily_credits) != minimun_days:
-        logging.error(f'lenghth of daily_credits ({len(daily_credits)}) is not equal to minimun_days ({minimun_days}) ')
-    logging.info(f'result of function: {daily_credits}')
-    logging.info('\n')
+        logging.warning(f'lenghth of daily_credits ({len(daily_credits)}) is not equal to minimun_days ({minimun_days}) ')
+    logging.info(f'credits_list was: {credits_list=}')
+    logging.info(f'result of function: {daily_credits}\n')
     return daily_credits
 
+def get_dicts_with_conditions( search_target: list[dict], day: str = '', credit_number_list:list[int] = [], start_time: str = '', end_time: str = '',  excluded_courses: list[str] = []) -> list[dict]:
+    '''return the dicts that accomplish conditions in parameters'''
+    for element in list(search_target):
+        course_name: str | None = element.get('course_name')
+        timetable: str | None =  element.get('timetable')
+        credits_amount_value: int | None = element.get('credits_amount')
+        days: str | None = element.get('days')
+        # after verify if there are the proper keys in the ($element) will remove it from the 
+        # from search_target if dont accomplish certain conditions
+        #### FIX HERE
+        #### FIX HERE
+        if days: 
+            days_list: list[str] = parse_days(days)
 
+            if day and day not in days_list:
+                search_target.remove(element)
+                continue
+        if course_name and  course_name in excluded_courses:
+            search_target.remove(element)
+            continue
+
+        if timetable:
+            if start_time or end_time:
+                timetable_list: list[str] = parse_timetable_from_timetables(timetable)
+                parsed_timetables: list[dict] = [get_start_and_end_time_from_timetable(parsed) for parsed in timetable_list]
+                broken_condition: bool = False
+                for parsed in parsed_timetables:
+                    start_time_value: str | None = parsed.get('start_time')
+                    end_time_value: str | None = parsed.get('end_time')
+
+                    if start_time_value and start_time != start_time_value:
+                        broken_condition: bool = True
+                        break
+                    if end_time_value and end_time != end_time_value:
+                        broken_condition: bool = True
+                        break
+                if broken_condition:
+                    search_target.remove(element)
+                    continue
+        if credits_amount_value and credits_amount_value not in credit_number_list:
+            search_target.remove(element)
+            continue
+    ordered_search_target: list[dict] = sorted(search_target, key=lambda element: element['credits_amount'])
+    return ordered_search_target
+
+#### FIX HERE
+#### FIX HERE
+def can_be_more_courses_before(start_time: str, day: str, candidates_for_fill: list[dict], credits_day: list[int], min_credit: int) -> dict:
+    TIMETABLES_KEY: str = 'course_timetables'
+    if len(credits_day) == 1:
+        return {}
+    for candidate in candidates_for_fill:
+        timetable: dict | None =  candidate.get('course_timetables')
+        if timetable:
+            days: list[str] = list(timetable.keys())
+            parsed_timetables: list[dict] = list(timetable.values())
+            for parsed in parsed_timetables:
+                start_time_value: str | None = parsed.get('start_time')
+                end_time_value: str | None = parsed.get('end_time')
+
+                if start_time_value and start_time != start_time_value:
+                    break
 
 
 
@@ -636,20 +563,36 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
     COMMON_DAY_PUNCTUATION_KEY: str = 'common_day_punctuation'
     CREDITS_AMOUNT_KEY: str = 'credits_amount'
     LESS_DAY_OF_CLASS_KEY: str = 'less_day_of_class_key'
+    START_TIME_KEY: str = 'start_time'
+    END_TIME_KEY: str = 'end_time'
 
     
 
     courses_dicts_list: dict = {}
 
+    possible_start_number: str | None = '07'
+    possible_end_number: str | None = '22'
+    available_interval: str = f'{possible_start_number} a {possible_end_number}'
+    available_interval_list: list[str] = []
+
     if prefered_interval_of_course:
         prefered_interval_dict: dict[str, str] = get_start_and_end_time_from_timetable(prefered_interval_of_course)
+        possible_start_number: str | None = prefered_interval_dict.get(START_TIME_KEY)
+        possible_end_number: str | None = prefered_interval_dict.get(END_TIME_KEY)
     else:
         prefered_interval_dict: dict[str, str ] = {}
-
     if black_interval_of_course:
         black_interval_dict: dict[str, str] = get_start_and_end_time_from_timetable(black_interval_of_course)
+        alter_possible_start_number: str | None = black_interval_dict.get(START_TIME_KEY)
+        alter_possible_end_number: str | None = black_interval_dict.get(END_TIME_KEY)
+        available_interval_list = [f'{possible_start_number} a {alter_possible_start_number}', f'{alter_possible_end_number} a {possible_end_number}']
     else:
         black_interval_dict: dict[str, str ] = {}
+
+
+    if possible_start_number and possible_end_number:
+        start_number: str = possible_start_number
+        end_number: str = possible_end_number
 
     
 
@@ -724,6 +667,8 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
     days_counter_dict = dict(sorted(days_counter_items, key= lambda tu: tu[1], reverse=True))
     days_counter_order_list: list = list(days_counter_dict.keys())
 
+    #here will be saved the credit_list to make the combinations
+    credits_list: list[int] = []
 
     # this punctuate the courses depending how many prefered conditions 
     # have. the conditions to punctuate are the prefered_* arguments
@@ -755,6 +700,7 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
 
                     # calc the credits and add it to the course as a key
                     credits_amount: int = parse_course_credits_amount(timetables=timetables_str_list)
+                    credits_list.append(credits_amount)
 
                 # adds a punctuation depending how many days must go to class
                 # (the minus you must go the more is the punctuation)
@@ -854,13 +800,13 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
 
 
     # here the dicts of each course will be ordered depending 
-    # its general punctuation
+    # its LESS_DAY_OF_CLASS_KEY 
     for courses_names in courses_dicts_list:
         original_courses_list: list[dict] | None = courses_dicts_list.get( courses_names )
         if original_courses_list:
             course: dict
             ordered_courses: list[dict] = sorted(original_courses_list,
-                key = lambda course: course[GENERAL_PUNCTUATION_KEY])
+                key = lambda course: course[LESS_DAY_OF_CLASS_KEY])
             courses_dicts_list.update({
                 courses_names: ordered_courses
             })
@@ -894,8 +840,44 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
     courses_dicts_list = dict(ordered_courses_without_general_punct)
 
 
+    if available_interval_list:
+        credits_combinations: list[list[int]] = calc_minimun_days(credits_list=credits_list, time_available=available_interval_list)
+    else:
+        credits_combinations: list[list[int]] = calc_minimun_days(credits_list=credits_list, time_available=available_interval)
+
+    alter_courses_timetable: list[dict] = []
+    baned_courses_names: list[str] = []
+
+    for credit_day in list( credits_combinations ): 
+        all_courses_available: list[dict] = [course for course_list in list(courses_dicts_list.values()) for course in course_list ]
+        for i in range(len(credit_day)):
+            if i == 0:
+                # in the first number of credit_day, will try to add a course with start_time
+                # equal to the minimun start_time possible. in case of unsuccessssful result,
+                # will add the first with the credit_number
+                courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[i], start_time= start_number)
+                if not courses_candidates:
+                    courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[i])
+                    for candidate in courses_candidates:
+                        # before add the first course, verify if there is another signature that can be before it
+                        candidate_to_timetable: dict = candidate
+                        break
+                    else:
+                        candidate_to_timetable: dict = courses_candidates[0]
+                    candidate_end_time: str | None = candidate_to_timetable.get(END_TIME_KEY)
+
+                    if candidate_end_time and candidate_end_time != end_number
+
+                    min
+                else:
+                    candidate_to_timetable: dict = courses[0]
+                alter_courses_timetable.append(courses_candidates[0])
+            else:
+                courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list= credit_day[i:], excluded_courses=baned_courses_names)
+
+        pass
+
     list_possible_courses_full_timetable: list[list] = []
-    # here will be the first course of all timetables
     course_number: int = 0
     for i in range(3):
         possible_courses_full_timetable: list[dict] = []

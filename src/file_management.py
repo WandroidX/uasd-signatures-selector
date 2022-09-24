@@ -1,8 +1,6 @@
 import openpyxl
-import logging
-import dict_management as dictma
+from src import dict_management as dictma
 
-logging.basicConfig(format='[%(asctime)s %( level )s] %(message)s', level=logging.DEBUG)
 
 def get_signatures_from_file(campus_where: str,  signatures_file: str, signatures_names: list[str], useful_columns_index: list[int], useful_columns_names: list[str]) -> list[dict]:
     '''Parse signatures from a excel file from the UASD. Convert rows in dicts'''
@@ -41,8 +39,6 @@ def get_signatures_from_file(campus_where: str,  signatures_file: str, signature
         dicts_list: list[dict] = dictma.get_dicts_from_dicts_list(signatures, {
             'NRC': signature_dict['NRC']
         }, can_be_several=True)
-        if len(dicts_list) > 2:
-            logging.info(dicts_list)
         merged_signatures.append(dictma.merge_dicts(dicts_list))
 
 
