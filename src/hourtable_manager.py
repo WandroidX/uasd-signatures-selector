@@ -1,11 +1,12 @@
 import re
 import logging
-from typing import Match, Pattern
+from typing import Match, Pattern, NoReturn
 
 
 logging.basicConfig(format='[%(asctime)s] - %(levelname)s - filename: %(filename)s - lineno: %(lineno)s - function name: %(funcName)s -  %(message)s', level=logging.DEBUG, filemode='a',
                     filename='./hourtable.log')
 
+=
 
 def convert_hour_to_seconds(hour: str) -> str:
     '''Receive an hour in HH format 
@@ -473,11 +474,13 @@ def calc_minimun_days(credits_list: list[int], time_available: str | list[str]) 
     logging.info(f'result of function: {daily_credits}\n')
     return daily_credits
 
-def get_dicts_with_conditions( search_target: list[dict], day: str = '', credit_number_list:list[int] = [], start_time: str = '', end_time: str = '',  excluded_courses: list[str] = []) -> list[dict]:
+def get_dicts_with_conditions( search_target: list[dict], day: str = '', credit_number_list:list[int] = [], start_time: str = '', end_time: str = '',  excluded_courses: list[str] = [], need_to_fit: bool = False) -> list[dict] | NoReturn:
     '''return the dicts that accomplish conditions in parameters'''
+    if need_to_fit:
+        if start_time or end_time and not day:
+            raise Exception('the function requires a day to verify the start and end_time')
     for element in list(search_target):
         course_name: str | None = element.get('course_name')
-        timetable: str | None =  element.get('timetable')
         credits_amount_value: int | None = element.get('credits_amount')
         days: str | None = element.get('days')
         # after verify if there are the proper keys in the ($element) will remove it from the 
@@ -494,24 +497,64 @@ def get_dicts_with_conditions( search_target: list[dict], day: str = '', credit_
             search_target.remove(element)
             continue
 
-        if timetable:
-            if start_time or end_time:
-                timetable_list: list[str] = parse_timetable_from_timetables(timetable)
+        if need_to_fit:
+            timetables: dict | None =  element.get('course_timetables')
+
+            if timetables:
+                # to verify if has broken start_time or end_time condition
+                broken_condition: bool = False 
+                # go throught all days in course_timetables
+                for timetable_day, value in list( timetables.items() ):
+                    start_time_value: str | None = value.get('start_time')
+                    end_time_value: str | None = value.get('end_time')
+                    # if day == timetable_day, verify if start_time or end_time specified in the
+                    # function parameter is equal to the start_time or end_time of the current
+                    # element. if not, will be removed
+                    if day == timetable_day:
+                        if start_time_value and start_time:
+                            if start_time != start_time_value:
+                                search_target.remove(element)
+                                broken_condition: bool = True
+                                break
+                        if end_time_value and end_time:
+                            if end_time != end_time_value:
+                                search_target.remove(element)
+                                broken_condition: bool = True
+                                break
+                if broken_condition:
+                    continue
+
+        elif not need_to_fit:
+            timetable: str | None =  element.get('timetable')
+            if timetable:
+                timetable_list: list = parse_timetable_from_timetables(timetable)
                 parsed_timetables: list[dict] = [get_start_and_end_time_from_timetable(parsed) for parsed in timetable_list]
-                broken_condition: bool = False
+                condition_is_accomplish: bool = False
                 for parsed in parsed_timetables:
+                    if condition_is_accomplish:
+                        break
                     start_time_value: str | None = parsed.get('start_time')
                     end_time_value: str | None = parsed.get('end_time')
 
-                    if start_time_value and start_time != start_time_value:
-                        broken_condition: bool = True
-                        break
-                    if end_time_value and end_time != end_time_value:
-                        broken_condition: bool = True
-                        break
-                if broken_condition:
+                    ### here
+                    if start_time_value and start_time:
+                        if start_time == start_time_value:
+                            condition_is_accomplish: bool = True
+                        else:
+                            condition_is_accomplish: bool = False
+                            if end_time:
+                                continue
+
+                    if end_time_value and end_time:
+                        if end_time == end_time_value:
+                            condition_is_accomplish: bool = True
+                        else:
+                            condition_is_accomplish: bool = False
+                else:
                     search_target.remove(element)
                     continue
+
+
         if credits_amount_value and credits_amount_value not in credit_number_list:
             search_target.remove(element)
             continue
@@ -520,21 +563,116 @@ def get_dicts_with_conditions( search_target: list[dict], day: str = '', credit_
 
 #### FIX HERE
 #### FIX HERE
-def can_be_more_courses_before(start_time: str, day: str, candidates_for_fill: list[dict], credits_day: list[int], min_credit: int) -> dict:
-    TIMETABLES_KEY: str = 'course_timetables'
-    if len(credits_day) == 1:
-        return {}
-    for candidate in candidates_for_fill:
-        timetable: dict | None =  candidate.get('course_timetables')
-        if timetable:
-            days: list[str] = list(timetable.keys())
-            parsed_timetables: list[dict] = list(timetable.values())
-            for parsed in parsed_timetables:
-                start_time_value: str | None = parsed.get('start_time')
-                end_time_value: str | None = parsed.get('end_time')
+def get_course_before_and_after(course_dict: dict, candidates_for_fill: list[dict]) -> list[dict]:
+    principal_timetables: dict | None =  course_dict.get('course_timetables')
+    principal_name: str | None = course_dict.get('course_name')
+    before_after_courses: list[list[dict]] = []
+    if principal_timetables and principal_name:
+        for i, candidate in enumerate(list(candidates_for_fill)):
+            timetables: dict | None =  candidate.get('course_timetables')
+            candidate_name: str | None = course_dict.get('course_name')
+            is_interfering: bool = False
+            if timetables and candidate_name:
+                shared_day: bool = False
+                if len(timetables) == 1:
+                    for principal_day, principal_value in list(principal_timetables.items()):
+                        shared_day: bool = principal_day in timetables
+                        day_data: dict | None = timetables.get(principal_day)
+                        if shared_day and day_data:
+                            # is there is interference between the candidate and the principal course
+                            is_interfering: bool = compare_timetable_interference(principal_value, day_data)
+                            if is_interfering:
+                                break
+                            principal_start_time: dict | None = principal_value.get('start_time')
+                            principal_end_time: dict | None =  principal_value.get('end_time')
+                            candidate_start_time: dict | None = day_data.get('start_time')
+                            candidate_end_time: dict | None =  day_data.get('end_time')
+                            candidate_str_timetable: dict | None =  day_data.get('str_timetable')
+                            if principal_start_time and principal_end_time \
+                            and candidate_start_time and candidate_end_time and candidate_str_timetable:
+                                # if the found is a course that can be before the principal
+                                # then the next to get is what will be after
+                                if candidate_end_time == principal_start_time:
+                                    before_after_courses.append([candidate])
+                                    next_candidate_index: int = i + 1
+                                    if next_candidate_index < len(candidates_for_fill):
+                                        for after in list(candidates_for_fill[next_candidate_index:]):
+                                            after_timetables: dict | None =  after.get('course_timetables')
+                                            after_name: str | None = after.get('course_name')
+                                            if after_name and after_name == principal_name \
+                                            or after_name == candidate_name:
+                                                continue
 
-                if start_time_value and start_time != start_time_value:
-                    break
+                                            is_interfering: bool = False
+                                            if after_timetables:
+                                                after_data: dict | None = timetables.get(principal_day)
+                                                if after_data:
+                                                    # is there is interference between the candidate or the principal course and the course that will be after
+                                                    is_interfering_principal: bool = compare_timetable_interference(principal_value, after_data)
+                                                    is_interfering_candidate: bool = compare_timetable_interference(candidate_str_timetable, after_data)
+                                                    if is_interfering_principal or is_interfering_candidate:
+                                                        break
+                                                    # only gets the start_time cause if
+                                                    # will be after is the start_time that must be equal to the one in the principal_course
+                                                    after_start_time: dict | None = day_data.get('start_time')
+                                                    if principal_end_time == after_start_time:
+                                                        before_after_courses[-1].append(after)
+
+
+                                # then the next to get is what will be before
+                                elif principal_end_time == candidate_start_time:
+                                    before_after_courses.append([candidate])
+                                    next_candidate_index: int = i + 1
+                                    if next_candidate_index < len(candidates_for_fill):
+                                        for before in list(candidates_for_fill[next_candidate_index:]):
+                                            before_timetables: dict | None =  before.get('course_timetables')
+                                            before_name: str | None = before.get('course_name')
+                                            if before_name and before_name == principal_name \
+                                            or before_name == candidate_name:
+                                                continue
+                                            is_interfering: bool = False
+                                            if before_timetables:
+                                                before_data: dict | None = timetables.get(principal_day)
+                                                if before_data:
+                                                    # is there is interference between the candidate or the principal course and the course that will be before
+                                                    is_interfering_principal: bool = compare_timetable_interference(principal_value, before_data)
+                                                    is_interfering_candidate: bool = compare_timetable_interference(candidate_str_timetable, before_data)
+                                                    if is_interfering_principal or is_interfering_candidate:
+                                                        break
+                                                    # only gets the start_time cause if
+                                                    # will be before is the start_time that must be equal to the one in the principal_course
+                                                    before_end_time: dict | None = day_data.get('end_time')
+                                                    if before_end_time == principal_start_time:
+                                                        before_after_courses[-1].append(before)
+
+
+                    if is_interfering:
+                        continue
+                    if not shared_day:
+                        continue
+
+                else:
+
+                for timetable_day, value in list( timetables.items() ):
+                    pass
+                # to verify if has broken start_time or end_time condition
+                # go throught all days in course_timetables
+    return before_after_courses
+    # TIMETABLES_KEY: str = 'course_timetables'
+    # # if credits_day len is 1, is impossible to put another course before
+    # if len(credits_day) == 1:
+        # return 'len is 1'
+    # for candidate in candidates_for_fill:
+        # timetable: dict | None =  candidate.get('course_timetables')
+        # if timetable:
+            # days: list[str] = list(timetable.keys())
+            # parsed_timetables: list[dict] = list(timetable.values())
+            # for parsed in parsed_timetables:
+                # start_time_value: str | None = parsed.get('start_time')
+                # end_time_value: str | None = parsed.get('end_time')
+
+                # if start_time_value and start_time != start_time_value:
+                    # break
 
 
 
@@ -847,28 +985,88 @@ def make_courses_timetables(courses_timetables: list[dict[str, str]],
 
     alter_courses_timetable: list[dict] = []
     baned_courses_names: list[str] = []
+    days_list: list[str] = []
 
+    ### need to fix from here
     for credit_day in list( credits_combinations ): 
-        all_courses_available: list[dict] = [course for course_list in list(courses_dicts_list.values()) for course in course_list ]
+        all_courses_available: list[dict] = [course 
+                                             for course_list in list(courses_dicts_list.values()) 
+                                             for course in course_list ]
         for i in range(len(credit_day)):
             if i == 0:
-                # in the first number of credit_day, will try to add a course with start_time
-                # equal to the minimun start_time possible. in case of unsuccessssful result,
-                # will add the first with the credit_number
-                courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[i], start_time= start_number)
+                # try to find courses with a certain credit_number  and start_time or end_time.
+                # if didnt get any course,  only will search course with a certain credit_number
+                courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[credit_day[0]], start_time= start_number)
                 if not courses_candidates:
-                    courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[i])
-                    for candidate in courses_candidates:
-                        # before add the first course, verify if there is another signature that can be before it
-                        candidate_to_timetable: dict = candidate
-                        break
+                    courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[ credit_day[i] ], end_time= end_number)
+                    if not courses_candidates:
+                        courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=[credit_day[i]])
+            else:
+                courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=credit_day[i:], start_time= start_number, day=days_list[-1])
+                if not courses_candidates:
+                    courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=credit_day[i:], end_time= end_number, day=days_list[-1])
+                    if not courses_candidates:
+                        courses_candidates: list[dict] = get_dicts_with_conditions(all_courses_available, credit_number_list=credit_day[i:], day=days_list[-1])
+
+            # here, skips the courses that interfere with the added before in ( alter_courses_timetable )
+            for course in list(courses_candidates):
+                timetables: dict | None =  course.get('course_timetables')
+                is_interfering: bool = False
+                if timetables:
+                    # to verify if has broken start_time or end_time condition
+                    # go throught all days in course_timetables
+                    for timetable_day, value in list( timetables.items() ):
+                        if alter_courses_timetable:
+                            for alter_course in alter_courses_timetable:
+                                alter_timetables: dict | None =  alter_course.get('course_timetables')
+                                if alter_timetables:
+                                    for alter_day, alter_value in list( alter_timetables.items() ):
+                                        if alter_day == timetable_day:
+                                            is_interfering: bool = compare_timetable_interference(value, alter_value)
+                                            if is_interfering:
+                                                break
+                                    if is_interfering:
+                                        break
+                        if is_interfering:
+                            break
+                    if is_interfering:
+                        continue
                     else:
-                        candidate_to_timetable: dict = courses_candidates[0]
-                    candidate_end_time: str | None = candidate_to_timetable.get(END_TIME_KEY)
 
-                    if candidate_end_time and candidate_end_time != end_number
+                        start_time_value: str | None = value.get('start_time')
+                        end_time_value: str | None = value.get('end_time')
+                        day_conditioner: str = timetable_day
+                        # if day == timetable_day, verify if start_time or end_time specified in the
+                        # function parameter is equal to the start_time or end_time of the current
+                        # element. if not, will be removed
+                        if day == timetable_day:
+                            if start_time_value and start_time:
+                                if start_time != start_time_value:
+                                    search_target.remove(element)
+                                    broken_condition: bool = True
+                                    break
+                            if end_time_value and end_time:
+                                if end_time != end_time_value:
+                                    search_target.remove(element)
+                                    broken_condition: bool = True
+                                    break
+                    if broken_condition:
+                        continue
 
-                    min
+
+                for candidate in courses_candidates:
+                # before add the first course, verify if there is another signature that can be before it
+                    candidate_to_timetable: dict = candidate
+                    candidate_in_list: list[dict] = [candidate]
+                    before_candidate_course: list[dict] = get_dicts_with_conditions(search_target=candidate_in_list, )
+                else:
+                    candidate_to_timetable: dict = courses_candidates[0]
+
+                candidate_end_time: str | None = candidate_to_timetable.get(END_TIME_KEY)
+
+                if candidate_end_time and candidate_end_time != end_number
+
+                min
                 else:
                     candidate_to_timetable: dict = courses[0]
                 alter_courses_timetable.append(courses_candidates[0])
